@@ -655,7 +655,9 @@ with tab_rag:
         if not settings.openai_api_key:
             st.error("OPENAI_API_KEY is required.")
         elif not st.session_state.rag_retriever:
-            st.error("Upload a PDF first.")
+            st.error("Upload a PDF first and wait for it to finish loading.")
+        elif not question.strip():
+            st.error("Enter a question to answer.")
         else:
             docs = st.session_state.rag_retriever.get_relevant_documents(question)
             context = "\n\n".join(doc.page_content for doc in docs)
