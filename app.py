@@ -212,6 +212,8 @@ if "rag_meta" not in st.session_state:
     st.session_state.rag_meta = None
 if "rag_ready" not in st.session_state:
     st.session_state.rag_ready = False
+if "rag_file_id" not in st.session_state:
+    st.session_state.rag_file_id = None
 
 
 def evaluate_rubric(prompt: str) -> List[Dict[str, Any]]:
@@ -637,27 +639,36 @@ with tab_agents:
 with tab_rag:
     st.subheader("Ask My Docs (PDF RAG)")
     st.caption("Upload a PDF and ask questions grounded in the document.")
-    uploaded = st.file_uploader("Upload a PDF", type="pdf")
-    if uploaded and settings.openai_api_key:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp.write(uploaded.read())
-            tmp_path = tmp.name
-        loader = PyPDFLoader(tmp_path)
-        pages = loader.load()
-        splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
-        chunks = splitter.split_documents(pages)
-        embeddings = OpenAIEmbeddings(model="text-embedding-3-small", api_key=settings.openai_api_key)
-        vectorstore = FAISS.from_documents(chunks, embeddings)
-        st.session_state.rag_retriever = vectorstore.as_retriever()
-        st.session_state.rag_meta = {"pages": len(pages), "chunks": len(chunks)}
-        st.session_state.rag_ready = True
-        st.success(f"Loaded {len(pages)} pages → {len(chunks)} chunks.")
+    uploaded = st.file_uploader("Upload a PDF", type="pdf", key="rag_uploader")
+    
+    # Process uploaded PDF
+    if uploaded is not None and settings.openai_api_key:
+        # Only process if this is a new upload (check file name or use a hash)
+        file_id = uploaded.name + str(uploaded.size)
+        if st.session_state.get("rag_file_id") != file_id:
+            with st.spinner("Loading PDF and creating embeddings..."):
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                    tmp.write(uploaded.read())
+                    tmp_path = tmp.name
+                loader = PyPDFLoader(tmp_path)
+                pages = loader.load()
+                splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
+                chunks = splitter.split_documents(pages)
+                embeddings = OpenAIEmbeddings(model="text-embedding-3-small", api_key=settings.openai_api_key)
+                vectorstore = FAISS.from_documents(chunks, embeddings)
+                st.session_state.rag_retriever = vectorstore.as_retriever()
+                st.session_state.rag_meta = {"pages": len(pages), "chunks": len(chunks)}
+                st.session_state.rag_ready = True
+                st.session_state.rag_file_id = file_id
+                st.success(f"Loaded {len(pages)} pages → {len(chunks)} chunks.")
+        elif st.session_state.rag_meta:
+            st.info(f"PDF ready: {st.session_state.rag_meta['pages']} pages, {st.session_state.rag_meta['chunks']} chunks.")
 
     question = st.text_input("Ask a question about your PDF")
     if st.button("Answer", key="rag-answer", type="primary"):
         if not settings.openai_api_key:
             st.error("OPENAI_API_KEY is required.")
-        elif not st.session_state.rag_ready or not st.session_state.rag_retriever or not hasattr(st.session_state.rag_retriever, "get_relevant_documents"):
+        elif not st.session_state.rag_retriever or not hasattr(st.session_state.rag_retriever, "get_relevant_documents"):
             st.error("Upload a PDF first and wait for it to finish loading.")
         elif not question.strip():
             st.error("Enter a question to answer.")
