@@ -654,7 +654,7 @@ with tab_rag:
     if st.button("Answer", key="rag-answer", type="primary"):
         if not settings.openai_api_key:
             st.error("OPENAI_API_KEY is required.")
-        elif not st.session_state.rag_retriever:
+        elif not st.session_state.rag_retriever or not hasattr(st.session_state.rag_retriever, "get_relevant_documents"):
             st.error("Upload a PDF first and wait for it to finish loading.")
         elif not question.strip():
             st.error("Enter a question to answer.")
