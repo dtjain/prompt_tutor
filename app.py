@@ -210,6 +210,8 @@ if "rag_retriever" not in st.session_state:
     st.session_state.rag_retriever = None
 if "rag_meta" not in st.session_state:
     st.session_state.rag_meta = None
+if "rag_ready" not in st.session_state:
+    st.session_state.rag_ready = False
 
 
 def evaluate_rubric(prompt: str) -> List[Dict[str, Any]]:
@@ -648,13 +650,14 @@ with tab_rag:
         vectorstore = FAISS.from_documents(chunks, embeddings)
         st.session_state.rag_retriever = vectorstore.as_retriever()
         st.session_state.rag_meta = {"pages": len(pages), "chunks": len(chunks)}
+        st.session_state.rag_ready = True
         st.success(f"Loaded {len(pages)} pages → {len(chunks)} chunks.")
 
     question = st.text_input("Ask a question about your PDF")
     if st.button("Answer", key="rag-answer", type="primary"):
         if not settings.openai_api_key:
             st.error("OPENAI_API_KEY is required.")
-        elif not st.session_state.rag_retriever or not hasattr(st.session_state.rag_retriever, "get_relevant_documents"):
+        elif not st.session_state.rag_ready or not st.session_state.rag_retriever or not hasattr(st.session_state.rag_retriever, "get_relevant_documents"):
             st.error("Upload a PDF first and wait for it to finish loading.")
         elif not question.strip():
             st.error("Enter a question to answer.")
